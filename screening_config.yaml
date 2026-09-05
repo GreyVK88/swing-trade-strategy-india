@@ -1,0 +1,75 @@
+# screening_config.yaml
+# Screening & sizing parameters for the VCP-based cross-cap swing trading strategy.
+# Fill in / tune the placeholder values below against your own backtests.
+
+universe:
+  source: "nifty500"          # nifty500 | nifty_total_market | custom_list.csv
+  exclude_illiquid: true
+  min_avg_daily_turnover_inr_cr: 5.0   # minimum 20D avg turnover (INR crores) to be considered liquid enough to trade
+
+  cap_tiers:
+    large_cap:
+      free_float_mcap_rank: [1, 100]     # NSE/AMFI-style rank cutoffs
+      min_avg_daily_turnover_inr_cr: 20.0
+    mid_cap:
+      free_float_mcap_rank: [101, 250]
+      min_avg_daily_turnover_inr_cr: 8.0
+    small_cap:
+      free_float_mcap_rank: [251, 500]
+      min_avg_daily_turnover_inr_cr: 3.0
+
+vcp:
+  min_contractions: 2                 # minimum number of progressively tighter pullbacks
+  max_contractions: 6
+  contraction_tightening_ratio: 0.75  # each contraction should be <= this fraction of the prior one's depth
+  final_contraction_max_depth_pct: 12 # last contraction depth cap, tighter for large cap vs small cap (tune per tier)
+  volume_dry_up_ratio: 0.6            # final-stage avg volume / base avg volume, must be <= this
+  pivot_buffer_pct: 1.5               # distance below pivot high considered "at/near pivot"
+  trend_filter:
+    require_above_50dma: true
+    require_above_150dma: true
+    require_above_200dma: true
+    require_ma_alignment: true        # 50 > 150 > 200, all rising
+
+smart_money_confirmation:
+  bulk_block_deal_lookback_days: 10
+  require_net_buy_side: true
+  min_delivery_pct: 55                # minimum delivery % on breakout/base day
+  delivery_pct_vs_avg_multiplier: 1.2 # breakout-day delivery % must be >= this multiple of trailing 20D avg
+
+relative_strength:
+  benchmark: "NIFTY50"
+  lookback_windows_days: [21, 63, 126]
+  min_percentile_rank: 70             # candidate must rank in top X percentile of universe RS
+  compare_vs_cap_tier_index: true     # additionally rank within own cap-tier index (Nifty Midcap150 / Smallcap250 etc.)
+
+position_sizing:
+  method: "fixed_fractional"
+  risk_per_trade_pct_of_capital: 0.5  # % of total capital risked per trade
+  stop_loss_reference: "below_pivot_or_last_contraction_low"
+  max_position_pct_of_capital: 10.0   # hard cap regardless of stop distance
+  max_concurrent_positions: 15
+
+sector_macro_overlay:
+  sector_rotation_lookback_days: 63
+  max_sector_exposure_pct: 25.0
+  regime_filters:
+    index_above_200dma_required: true
+    breadth_threshold_pct: 40         # e.g., % of Nifty 500 stocks above own 200DMA, min required to run at full size
+  exposure_scaling:
+    risk_on_multiplier: 1.0
+    neutral_multiplier: 0.6
+    risk_off_multiplier: 0.25
+
+output:
+  format: "csv"                       # csv | json
+  path: "output/scan_results.csv"
+  include_columns:
+    - symbol
+    - cap_tier
+    - pivot_price
+    - stop_loss
+    - rs_percentile
+    - delivery_pct
+    - bulk_block_deal_flag
+    - suggested_position_size
