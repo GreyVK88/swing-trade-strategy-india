@@ -273,8 +273,15 @@ def apply_smart_money_confirmation(candidates: list[Candidate], config: dict) ->
     Expects:
       data['bulk_block_deals_csv']: symbol, date, buy_sell, deal_type
       data['delivery_pct_csv']: symbol, date, delivery_pct  (daily history)
+
+    smart_money_confirmation['require_bulk_block_deal_confirmation'] (default
+    True): set False when you don't have a bulk/block deal data source wired
+    up (jugaad-data, for instance, doesn't expose historical bulk/block deal
+    downloads) — otherwise every candidate gets rejected, since real stocks
+    rarely have a bulk/block deal on any given day.
     """
     scfg = config["smart_money_confirmation"]
+    require_deal = scfg.get("require_bulk_block_deal_confirmation", True)
     deals = _read_csv(config["data"]["bulk_block_deals_csv"])
     delivery = _read_csv(config["data"]["delivery_pct_csv"])
     for r in delivery:
@@ -308,8 +315,9 @@ def apply_smart_money_confirmation(candidates: list[Candidate], config: dict) ->
 
         meets_min = latest_pct >= scfg["min_delivery_pct"]
         meets_multiplier = trailing_avg == 0 or (latest_pct / trailing_avg) >= scfg["delivery_pct_vs_avg_multiplier"]
+        meets_deal_confirmation = c.bulk_block_deal_flag or not require_deal
 
-        if meets_min and meets_multiplier and c.bulk_block_deal_flag:
+        if meets_min and meets_multiplier and meets_deal_confirmation:
             survivors.append(c)
 
     return survivors

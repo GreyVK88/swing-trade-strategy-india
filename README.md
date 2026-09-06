@@ -39,15 +39,19 @@ A top-down filter/tilt layered on top of the bottom-up scan:
 ```
 swing-trade-strategy-india/
 ├── README.md
-├── .github/workflows/run-scanner.yml  # one-click "Run scan" via GitHub Actions
+├── .github/workflows/run-scanner.yml  # one-click "Run scan" via GitHub Actions (sample or real NSE data)
 ├── config/
-│   └── screening_config.yaml   # all screening/sizing parameters, by cap tier + data file paths
+│   ├── screening_config.yaml       # sample-data config (all params, by cap tier)
+│   └── screening_config.real.yaml  # same params, pointed at data/real/ instead
 ├── scanner/
 │   └── scanner.py               # the screening pipeline (all 6 stages implemented)
 ├── data/
 │   ├── README.md                # CSV schemas expected by scanner.py
 │   ├── generate_sample_data.py  # generates synthetic sample data to run against
-│   └── sample/                  # generated sample data (gitignored except via generate script)
+│   ├── nse_symbols.yaml         # symbol list + cap tier/sector for real-data fetch (user-maintained)
+│   ├── fetch_nse_data.py        # fetches real OHLCV + delivery % via jugaad-data
+│   ├── sample/                  # generated sample data (gitignored)
+│   └── real/                    # fetched real data (gitignored)
 └── output/
     └── scan_results.csv         # written by each run
 ```
@@ -55,14 +59,16 @@ swing-trade-strategy-india/
 ## Run it on GitHub (no local setup)
 
 1. Go to the **Actions** tab → **"Run scanner"** in the left sidebar.
-2. Click **"Run workflow"**, set your capital, leave "use sample data" checked.
-3. Once it finishes (~30s), open the run and download the **scan-results**
-   artifact from the bottom of the run's summary page — it's the same
-   `scan_results.csv` you'd get locally.
-
-Uncheck "use sample data" only if you've committed your own real CSVs under
-`data/` following the schemas in `data/README.md` — the repo's `.gitignore`
-excludes `data/sample/` by default, so real data needs its own path.
+2. Click **"Run workflow"**, set your capital, and choose a data source:
+   - **`sample`** — synthetic demo data, generated fresh each run (not real prices).
+   - **`real_nse`** — fetches real OHLCV + delivery % for the symbols in
+     `data/nse_symbols.yaml` via [jugaad-data](https://github.com/jugaad-py/jugaad-data).
+     See the caveats in `data/README.md` before trusting its output — notably,
+     no bulk/block deal data is fetched, and cap-tier ranks are hand-maintained.
+3. Once it finishes, open the run and download from its summary page:
+   - **scan-results** — the `scan_results.csv` output
+   - **nse-raw-data** (real_nse runs only) — the fetched CSVs, useful for
+     checking the data actually looks right (or debugging if it doesn't)
 
 ## Quickstart
 
@@ -73,20 +79,35 @@ python scanner/scanner.py --config config/screening_config.yaml --capital 100000
 ```
 
 This runs against small synthetic sample data (not real prices) purely to
-exercise the pipeline end-to-end. For real use, replace the files under
-`data/sample/` — or better, point `config/screening_config.yaml`'s `data:`
-section at your own exports — following the schemas in `data/README.md`.
+exercise the pipeline end-to-end. For real data locally:
+
+```bash
+pip install jugaad-data pandas pyyaml
+python data/fetch_nse_data.py --symbols-config data/nse_symbols.yaml --out-dir data/real
+python scanner/scanner.py --config config/screening_config.real.yaml --capital 1000000
+```
+
+Or use the `real_nse` option in the GitHub Actions workflow (see below) —
+same result, no local setup. Either way, read `data/README.md`'s caveats on
+what the real-data fetch does and doesn't cover before trusting the output.
 
 ## Status
 
 All six pipeline stages are implemented (cap-tier/liquidity filtering, VCP
 detection, smart-money confirmation, RS ranking, fixed-fractional sizing,
-sector/macro overlay) and run end-to-end against the bundled sample data.
+sector/macro overlay) and verified end-to-end against synthetic sample data.
 The VCP detection is a heuristic swing-high/low based implementation, not a
 reference implementation — tune `config/screening_config.yaml`'s `vcp:`
 section and validate against your own charts/backtests before trusting its
-output. No live data source is wired in (see `data/README.md`); this reads
-local CSVs you refresh yourself from NSE bhavcopy or a vendor feed.
+output.
+
+Real data (OHLCV + delivery %) can be fetched via `data/fetch_nse_data.py`
+using jugaad-data — **but this has not been verified against a live NSE
+pull**, since the environment that built it can't reach nseindia.com. The
+first real test of it is whichever run actually executes it (local or the
+GitHub Action) — check the logged column names / `nse-raw-data` artifact if
+output looks empty or wrong. Bulk/block deal data and market-cap ranking
+are not fetched automatically; see `data/README.md`.
 
 ## Disclaimer
 

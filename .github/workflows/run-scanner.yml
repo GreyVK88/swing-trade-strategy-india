@@ -9,11 +9,14 @@ on:
         description: "Account capital (INR) for position sizing"
         required: true
         default: "1000000"
-      use_sample_data:
-        description: "Regenerate synthetic sample data before scanning (uncheck if you've committed your own real data under data/)"
-        type: boolean
+      data_source:
+        description: "sample = synthetic demo data | real_nse = fetch real data via jugaad-data"
+        type: choice
+        options:
+          - sample
+          - real_nse
         required: true
-        default: true
+        default: sample
   # schedule:
   #   - cron: "30 3 * * 1-5"  # 09:00 IST, Mon-Fri (cron runs in UTC)
 
@@ -29,17 +32,33 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install core dependencies
         run: pip install pyyaml
 
       - name: Generate sample data
-        if: ${{ inputs.use_sample_data }}
+        if: ${{ inputs.data_source == 'sample' }}
         run: python data/generate_sample_data.py
 
-      - name: Run scanner
+      - name: Install real-data dependencies
+        if: ${{ inputs.data_source == 'real_nse' }}
+        run: pip install jugaad-data pandas
+
+      - name: Fetch real NSE data
+        if: ${{ inputs.data_source == 'real_nse' }}
+        run: python data/fetch_nse_data.py --symbols-config data/nse_symbols.yaml --out-dir data/real
+
+      - name: Run scanner (sample data)
+        if: ${{ inputs.data_source == 'sample' }}
         run: |
           python scanner/scanner.py \
             --config config/screening_config.yaml \
+            --capital "${{ inputs.capital }}"
+
+      - name: Run scanner (real NSE data)
+        if: ${{ inputs.data_source == 'real_nse' }}
+        run: |
+          python scanner/scanner.py \
+            --config config/screening_config.real.yaml \
             --capital "${{ inputs.capital }}"
 
       - name: Upload scan results
@@ -47,4 +66,12 @@ jobs:
         with:
           name: scan-results
           path: output/scan_results.csv
+          if-no-files-found: warn
+
+      - name: Upload fetched real data (for debugging column-mapping issues)
+        if: ${{ inputs.data_source == 'real_nse' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nse-raw-data
+          path: data/real/
           if-no-files-found: warn

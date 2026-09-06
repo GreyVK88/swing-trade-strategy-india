@@ -1,0 +1,88 @@
+# screening_config.real.yaml
+# Same screening/sizing parameters as config/screening_config.yaml, but
+# pointed at real NSE data fetched by data/fetch_nse_data.py instead of the
+# synthetic sample data. See data/README.md and data/nse_symbols.yaml.
+
+data:
+  universe_csv: "data/real/universe.csv"
+  ohlcv_dir: "data/real/ohlcv"
+  benchmark_ohlcv_csv: "data/real/ohlcv/NIFTY50.csv"
+  bulk_block_deals_csv: "data/real/bulk_block_deals.csv"
+  delivery_pct_csv: "data/real/delivery_pct.csv"
+
+universe:
+  source: "custom_list.csv"
+  exclude_illiquid: true
+  min_avg_daily_turnover_inr_cr: 5.0
+
+  cap_tiers:
+    large_cap:
+      free_float_mcap_rank: [1, 100]
+      min_avg_daily_turnover_inr_cr: 20.0
+    mid_cap:
+      free_float_mcap_rank: [101, 250]
+      min_avg_daily_turnover_inr_cr: 8.0
+    small_cap:
+      free_float_mcap_rank: [251, 500]
+      min_avg_daily_turnover_inr_cr: 3.0
+
+vcp:
+  min_contractions: 2
+  max_contractions: 6
+  contraction_tightening_ratio: 0.75
+  final_contraction_max_depth_pct: 12
+  volume_dry_up_ratio: 0.6
+  pivot_buffer_pct: 1.5
+  trend_filter:
+    require_above_50dma: true
+    require_above_150dma: true
+    require_above_200dma: true
+    require_ma_alignment: true
+
+smart_money_confirmation:
+  bulk_block_deal_lookback_days: 10
+  require_net_buy_side: true
+  # jugaad-data doesn't expose a historical bulk/block deal download, so
+  # data/fetch_nse_data.py writes an empty bulk_block_deals.csv. Requiring
+  # deal confirmation with no deal data would reject every candidate, every
+  # run — keep this false until a real deal-data source is wired in.
+  require_bulk_block_deal_confirmation: false
+  min_delivery_pct: 55
+  delivery_pct_vs_avg_multiplier: 1.2
+
+relative_strength:
+  benchmark: "NIFTY50"
+  lookback_windows_days: [21, 63, 126]
+  min_percentile_rank: 70
+  compare_vs_cap_tier_index: true
+
+position_sizing:
+  method: "fixed_fractional"
+  risk_per_trade_pct_of_capital: 0.5
+  stop_loss_reference: "below_pivot_or_last_contraction_low"
+  max_position_pct_of_capital: 10.0
+  max_concurrent_positions: 15
+
+sector_macro_overlay:
+  sector_rotation_lookback_days: 63
+  max_sector_exposure_pct: 25.0
+  regime_filters:
+    index_above_200dma_required: true
+    breadth_threshold_pct: 40
+  exposure_scaling:
+    risk_on_multiplier: 1.0
+    neutral_multiplier: 0.6
+    risk_off_multiplier: 0.25
+
+output:
+  format: "csv"
+  path: "output/scan_results.csv"
+  include_columns:
+    - symbol
+    - cap_tier
+    - pivot_price
+    - stop_loss
+    - rs_percentile
+    - delivery_pct
+    - bulk_block_deal_flag
+    - suggested_position_size

@@ -67,3 +67,36 @@ average, not just the latest value).
 None of this is wired up automatically — it's on you (or a scheduled job you
 build) to export these into the CSV schemas above and refresh them
 periodically.
+
+## Automated fetch via jugaad-data (partial)
+
+`data/fetch_nse_data.py` uses the [jugaad-data](https://github.com/jugaad-py/jugaad-data)
+library to fetch real OHLCV + delivery % history for the symbols listed in
+`data/nse_symbols.yaml`, writing them into `data/real/` in the schemas above.
+It's wired into the GitHub Actions workflow (`data_source: real_nse`).
+
+**What it covers:** `universe.csv`, `ohlcv_dir` (per-symbol + NIFTY50
+benchmark), `delivery_pct.csv`.
+
+**What it does NOT cover — you still need to handle these separately:**
+- **`bulk_block_deals_csv`** — jugaad-data has no historical bulk/block deal
+  download function. The fetch script writes an empty file (headers only).
+  `config/screening_config.real.yaml` sets
+  `require_bulk_block_deal_confirmation: false` to match — without a real
+  deal data source, requiring deal confirmation would reject every candidate,
+  every run. If you want this signal, you'll need to source it separately
+  (NSE publishes Bulk Deals / Block Deals reports daily) and either merge it
+  in or flip that config flag back to `true` once you do.
+- **`free_float_mcap_rank`** — jugaad-data has no market-cap ranking
+  endpoint. You maintain this by hand in `data/nse_symbols.yaml` (AMFI
+  publishes an official classification list twice a year if you want to be
+  precise).
+
+**Honesty note:** this fetch script was written without the ability to test
+against live NSE data (Claude's sandbox network doesn't reach nseindia.com),
+so its column-name matching is defensive/probing rather than verified. The
+GitHub Action logs the raw column names jugaad-data returns on every run —
+if a run comes back with unexpectedly empty output, check those logs first;
+the fetch script prints exactly what it found and didn't find, and the
+workflow uploads the raw fetched CSVs (`nse-raw-data` artifact) for
+inspection.

@@ -1,0 +1,57 @@
+# nse_symbols.yaml
+#
+# Configurable list of NSE symbols for data/fetch_nse_data.py to pull real
+# bhavcopy (OHLCV) + delivery % history for.
+#
+# free_float_mcap_rank: approximate free-float market-cap rank. jugaad-data
+# has no market-cap ranking endpoint, so there's no way to fetch this
+# automatically — you supply it. AMFI publishes an official large/mid/small
+# cap classification list twice a year (search "AMFI market cap
+# classification") if you want to be precise; otherwise a rough estimate is
+# fine — it only needs to land in the right cap_tier bucket defined in
+# config/screening_config.real.yaml (large: 1-100, mid: 101-250, small: 251-500).
+#
+# sector: used by the sector-exposure cap in scanner.py Stage 6.
+#
+# The illustrative list below is a small, well-known cross-cap set to get you
+# started — ranks/sectors are approximate, adjust as needed. Add/remove
+# symbols freely; NIFTY50 (the benchmark) is fetched separately and should
+# not be listed here.
+
+symbols:
+  - symbol: RELIANCE
+    free_float_mcap_rank: 2
+    sector: Energy
+  - symbol: HDFCBANK
+    free_float_mcap_rank: 3
+    sector: Financials
+  - symbol: TCS
+    free_float_mcap_rank: 5
+    sector: IT
+  - symbol: ICICIBANK
+    free_float_mcap_rank: 6
+    sector: Financials
+  - symbol: INFY
+    free_float_mcap_rank: 8
+    sector: IT
+  - symbol: PAGEIND
+    free_float_mcap_rank: 140
+    sector: Consumer Discretionary
+  - symbol: LTTS
+    free_float_mcap_rank: 180
+    sector: IT
+  - symbol: COFORGE
+    free_float_mcap_rank: 160
+    sector: IT
+  - symbol: KIMS
+    free_float_mcap_rank: 320
+    sector: Healthcare
+  - symbol: FINEORG
+    free_float_mcap_rank: 350
+    sector: Chemicals
+
+# Lookback for how much history to fetch per symbol. Needs to be comfortably
+# more than 210 trading days for the 200DMA + VCP base detection to have
+# enough data; ~420 calendar days covers ~260 trading days after accounting
+# for weekends/holidays.
+lookback_calendar_days: 420

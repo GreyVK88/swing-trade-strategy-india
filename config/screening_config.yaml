@@ -44,6 +44,7 @@ vcp:
 smart_money_confirmation:
   bulk_block_deal_lookback_days: 10
   require_net_buy_side: true
+  require_bulk_block_deal_confirmation: true  # sample data has synthetic deals for the VCP candidates; keep true here
   min_delivery_pct: 55                # minimum delivery % on breakout/base day
   delivery_pct_vs_avg_multiplier: 1.2 # breakout-day delivery % must be >= this multiple of trailing 20D avg
 
