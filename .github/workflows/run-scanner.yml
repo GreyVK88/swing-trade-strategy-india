@@ -1,0 +1,50 @@
+name: Run scanner
+
+# Manual "Run workflow" button on the Actions tab. Also runs on a weekday
+# morning schedule (commented out below) if you want it fully automatic.
+on:
+  workflow_dispatch:
+    inputs:
+      capital:
+        description: "Account capital (INR) for position sizing"
+        required: true
+        default: "1000000"
+      use_sample_data:
+        description: "Regenerate synthetic sample data before scanning (uncheck if you've committed your own real data under data/)"
+        type: boolean
+        required: true
+        default: true
+  # schedule:
+  #   - cron: "30 3 * * 1-5"  # 09:00 IST, Mon-Fri (cron runs in UTC)
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Generate sample data
+        if: ${{ inputs.use_sample_data }}
+        run: python data/generate_sample_data.py
+
+      - name: Run scanner
+        run: |
+          python scanner/scanner.py \
+            --config config/screening_config.yaml \
+            --capital "${{ inputs.capital }}"
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results
+          path: output/scan_results.csv
+          if-no-files-found: warn

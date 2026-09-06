@@ -39,6 +39,7 @@ A top-down filter/tilt layered on top of the bottom-up scan:
 ```
 swing-trade-strategy-india/
 ├── README.md
+├── .github/workflows/run-scanner.yml  # one-click "Run scan" via GitHub Actions
 ├── config/
 │   └── screening_config.yaml   # all screening/sizing parameters, by cap tier + data file paths
 ├── scanner/
@@ -50,6 +51,18 @@ swing-trade-strategy-india/
 └── output/
     └── scan_results.csv         # written by each run
 ```
+
+## Run it on GitHub (no local setup)
+
+1. Go to the **Actions** tab → **"Run scanner"** in the left sidebar.
+2. Click **"Run workflow"**, set your capital, leave "use sample data" checked.
+3. Once it finishes (~30s), open the run and download the **scan-results**
+   artifact from the bottom of the run's summary page — it's the same
+   `scan_results.csv` you'd get locally.
+
+Uncheck "use sample data" only if you've committed your own real CSVs under
+`data/` following the schemas in `data/README.md` — the repo's `.gitignore`
+excludes `data/sample/` by default, so real data needs its own path.
 
 ## Quickstart
 
