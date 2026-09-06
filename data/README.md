@@ -76,12 +76,13 @@ library to fetch real OHLCV + delivery % history for the symbols listed in
 It's wired into the GitHub Actions workflow (`data_source: real_nse`).
 
 **What it covers:** `universe.csv`, `ohlcv_dir` (per-symbol + NIFTY50
-benchmark) via `stock_df`, and `delivery_pct.csv` via NSE's separate daily
-full-bhavcopy report (`stock_df` was confirmed — via an actual run — to not
-carry delivery % at all; the full-bhavcopy report does, in its `DELIV_PER`
-column). The delivery fetch only pulls the last ~25 trading days per symbol
-(all that scanner.py's smart-money confirmation stage needs), not full
-history.
+benchmark), and `delivery_pct.csv` — all via `stock_df`, which does carry a
+`DELIVERY %` column (confirmed via a real run; an earlier version of this
+script missed it due to an incomplete column-name guess list, now fixed).
+If that column is ever missing/renamed, it falls back to NSE's separate
+daily full-bhavcopy report (`DELIV_PER` column), pulling the last ~25
+trading days per symbol — confirmed working in the same run that surfaced
+the `stock_df` miss.
 
 **What it does NOT cover — you still need to handle these separately:**
 - **`bulk_block_deals_csv`** — jugaad-data has no historical bulk/block deal

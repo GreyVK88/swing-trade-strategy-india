@@ -16,12 +16,13 @@ IMPORTANT — things this script does NOT do:
   - It does NOT rank stocks by market cap. free_float_mcap_rank comes from
     data/nse_symbols.yaml, which you maintain by hand (see comments there).
   - This has not been run against live NSE from Claude's sandbox — the
-    sandbox's network is locked to github/pypi/npm, so this is written
-    defensively (normalizes/probes column names rather than hardcoding one
-    guess) but its first real test is whichever environment actually runs
-    it (e.g. the GitHub Actions workflow, which has full internet access).
-    If a run fails or produces empty output, check the logged raw column
-    names in the Action's output and adjust the alias lists below.
+    sandbox's network is locked to github/pypi/npm. It HAS been run once
+    against live NSE via the GitHub Actions workflow: stock_df's delivery %%
+    column was initially missed by an incomplete alias guess (fixed — see
+    DELIVERY_PCT_ALIASES), and the full-bhavcopy fallback was confirmed
+    working (10/10 symbols matched) in that same run. Column-name matching
+    elsewhere is still probing/defensive; if a run produces empty output,
+    check the logged raw column names in the Action's output.
 
 Usage:
     pip install jugaad-data pandas
@@ -60,16 +61,18 @@ CLOSE_ALIASES = ["close", "ltp"]
 VOLUME_ALIASES = ["volume", "totaltradedquantity", "ttlqty", "tottrdqty"]
 VALUE_ALIASES = ["value", "turnover", "totaltradedvalue"]
 DELIVERY_PCT_ALIASES = [
+    "delivery",  # confirmed real column: stock_df's "DELIVERY %%" normalizes to this
     "deliverble", "deliverablepct", "deliverabletotradedquantity",
     "deliverytotradedquantity", "dlyqttotradedqty", "pctdlyqttotradedqty",
     "deliveryqtypct", "deliverypercentage", "delivper", "delivpercentage",
 ]
-# Full-bhavcopy "sec_bhavdata_full" report is the one confirmed source for
-# delivery %% (stock_df doesn't carry it — confirmed by a real run: every
-# symbol logged "no delivery column found"). Its columns (NSE's own naming,
-# per public documentation of this report): SYMBOL, SERIES, DATE1,
-# PREV_CLOSE, OPEN_PRICE, HIGH_PRICE, LOW_PRICE, LAST_PRICE, CLOSE_PRICE,
-# AVG_PRICE, TTL_TRD_QNTY, TURNOVER_LACS, NO_OF_TRADES, DELIV_QTY, DELIV_PER.
+# Full-bhavcopy "sec_bhavdata_full" report is a fallback source for
+# delivery %% if stock_df's own column ever isn't found (it normally is —
+# see DELIVERY_PCT_ALIASES's "delivery" entry, confirmed against a real run).
+# Its columns (NSE's own naming, per public documentation of this report):
+# SYMBOL, SERIES, DATE1, PREV_CLOSE, OPEN_PRICE, HIGH_PRICE, LOW_PRICE,
+# LAST_PRICE, CLOSE_PRICE, AVG_PRICE, TTL_TRD_QNTY, TURNOVER_LACS,
+# NO_OF_TRADES, DELIV_QTY, DELIV_PER.
 FULL_BHAV_SYMBOL_ALIASES = ["symbol"]
 FULL_BHAV_DELIV_PER_ALIASES = ["delivper", "delivpercentage", "deliverypercentage"]
 
@@ -309,11 +312,10 @@ def main():
         })
 
     if not all_delivery_rows and reference_dates and fetched_symbols:
-        # stock_df doesn't carry delivery %% (confirmed by a real run) — pull
-        # it from the separate daily full-bhavcopy report instead, for the
-        # last ~25 trading days (only need latest + trailing 20D avg, not
-        # the full history).
-        print("Fetching delivery %% via full-bhavcopy report (stock_df didn't have it)...")
+        # Fallback only — stock_df normally provides delivery %% directly
+        # (confirmed against a real run) via this file's "delivery" alias.
+        # This path exists for if that column is ever missing/renamed.
+        print("stock_df didn't carry delivery %% this run — falling back to full-bhavcopy report...")
         recent_dates = reference_dates[-25:]
         all_delivery_rows = fetch_delivery_pct_via_full_bhavcopy(fetched_symbols, recent_dates)
 
