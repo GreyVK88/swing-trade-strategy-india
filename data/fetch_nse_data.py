@@ -62,8 +62,82 @@ VALUE_ALIASES = ["value", "turnover", "totaltradedvalue"]
 DELIVERY_PCT_ALIASES = [
     "deliverble", "deliverablepct", "deliverabletotradedquantity",
     "deliverytotradedquantity", "dlyqttotradedqty", "pctdlyqttotradedqty",
-    "deliveryqtypct", "deliverypercentage",
+    "deliveryqtypct", "deliverypercentage", "delivper", "delivpercentage",
 ]
+# Full-bhavcopy "sec_bhavdata_full" report is the one confirmed source for
+# delivery %% (stock_df doesn't carry it — confirmed by a real run: every
+# symbol logged "no delivery column found"). Its columns (NSE's own naming,
+# per public documentation of this report): SYMBOL, SERIES, DATE1,
+# PREV_CLOSE, OPEN_PRICE, HIGH_PRICE, LOW_PRICE, LAST_PRICE, CLOSE_PRICE,
+# AVG_PRICE, TTL_TRD_QNTY, TURNOVER_LACS, NO_OF_TRADES, DELIV_QTY, DELIV_PER.
+FULL_BHAV_SYMBOL_ALIASES = ["symbol"]
+FULL_BHAV_DELIV_PER_ALIASES = ["delivper", "delivpercentage", "deliverypercentage"]
+
+
+def fetch_delivery_pct_via_full_bhavcopy(symbols: set, trading_dates: list[str]) -> list[dict]:
+    """Fetches NSE's daily 'full bhavcopy with delivery' report for each date
+    in trading_dates (YYYY-MM-DD strings) and extracts delivery_pct rows for
+    the requested symbols. One failed/unavailable date is logged and skipped
+    rather than aborting the whole fetch — NSE's archive occasionally lacks
+    a file for a given date (holiday, or the report just isn't published).
+
+    Import path/columns are per public documentation of this report and
+    jugaad-data's full_bhavcopy_raw, but NOT verified against a live call
+    from this environment — check the printed diagnostics if this comes
+    back empty.
+    """
+    import io
+    import csv as csv_module
+    from datetime import datetime
+
+    try:
+        from jugaad_data.nse import full_bhavcopy_raw
+    except ImportError:
+        try:
+            from jugaad_data.nse.archives import NSEArchives
+            full_bhavcopy_raw = NSEArchives().full_bhavcopy_raw
+        except ImportError as e:
+            print(f"ERROR: could not import a full-bhavcopy function from jugaad_data "
+                  f"({e}) — delivery %% will be unavailable this run.", file=sys.stderr)
+            return []
+
+    rows = []
+    for date_str in trading_dates:
+        dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+        try:
+            raw_text = full_bhavcopy_raw(dt)
+        except Exception as e:
+            print(f"  [full-bhavcopy {date_str}] WARNING: fetch failed ({e}) — skipping this date", file=sys.stderr)
+            continue
+
+        try:
+            reader = csv_module.DictReader(io.StringIO(raw_text))
+            file_columns_normalized = {_normalize_col(c): c for c in (reader.fieldnames or [])}
+        except Exception as e:
+            print(f"  [full-bhavcopy {date_str}] WARNING: could not parse CSV ({e}) — skipping this date", file=sys.stderr)
+            continue
+
+        symbol_col = _find_col(file_columns_normalized, FULL_BHAV_SYMBOL_ALIASES)
+        deliv_col = _find_col(file_columns_normalized, FULL_BHAV_DELIV_PER_ALIASES)
+        if symbol_col is None or deliv_col is None:
+            print(f"  [full-bhavcopy {date_str}] WARNING: expected columns not found "
+                  f"(raw columns: {reader.fieldnames}) — skipping this date", file=sys.stderr)
+            continue
+
+        matched = 0
+        for row in csv_module.DictReader(io.StringIO(raw_text)):
+            sym = row.get(symbol_col, "").strip()
+            if sym not in symbols:
+                continue
+            try:
+                pct = float(row[deliv_col].strip())
+            except (TypeError, ValueError):
+                continue
+            rows.append({"symbol": sym, "date": date_str, "delivery_pct": round(pct, 2)})
+            matched += 1
+        print(f"  [full-bhavcopy {date_str}] matched {matched}/{len(symbols)} symbols")
+
+    return rows
 
 
 def fetch_symbol_ohlcv_and_delivery(symbol: str, from_date: date, to_date: date):
@@ -205,6 +279,8 @@ def main():
 
     universe_rows = []
     all_delivery_rows = []
+    fetched_symbols = set()
+    reference_dates = None  # trading-day list from a successfully fetched symbol, used to drive the full-bhavcopy delivery fetch
 
     for entry in symbols_cfg["symbols"]:
         symbol = entry["symbol"]
@@ -215,7 +291,10 @@ def main():
             continue
 
         write_ohlcv_csv(ohlcv_dir / f"{symbol}.csv", ohlcv_rows)
-        all_delivery_rows.extend(delivery_rows)
+        all_delivery_rows.extend(delivery_rows)  # from stock_df, if it ever does carry the column
+        fetched_symbols.add(symbol)
+        if reference_dates is None:
+            reference_dates = [r["date"] for r in ohlcv_rows]
 
         # 20D avg daily turnover (INR crore) from close * volume.
         trailing = ohlcv_rows[-20:] if len(ohlcv_rows) >= 20 else ohlcv_rows
@@ -228,6 +307,15 @@ def main():
             "avg_daily_turnover_inr_cr": round(avg_turnover_cr, 2),
             "sector": entry.get("sector", "Unknown"),
         })
+
+    if not all_delivery_rows and reference_dates and fetched_symbols:
+        # stock_df doesn't carry delivery %% (confirmed by a real run) — pull
+        # it from the separate daily full-bhavcopy report instead, for the
+        # last ~25 trading days (only need latest + trailing 20D avg, not
+        # the full history).
+        print("Fetching delivery %% via full-bhavcopy report (stock_df didn't have it)...")
+        recent_dates = reference_dates[-25:]
+        all_delivery_rows = fetch_delivery_pct_via_full_bhavcopy(fetched_symbols, recent_dates)
 
     print("Fetching NIFTY50 benchmark...")
     bench_rows = fetch_benchmark_ohlcv("NIFTY 50", from_date, to_date)
@@ -247,6 +335,14 @@ def main():
         w = csv.DictWriter(f, fieldnames=["symbol", "date", "delivery_pct"])
         w.writeheader()
         w.writerows(all_delivery_rows)
+
+    if not all_delivery_rows:
+        print("ERROR: delivery_pct.csv is empty after trying both stock_df and "
+              "full-bhavcopy — every candidate will be dropped by the "
+              "smart-money confirmation stage regardless of the "
+              "require_bulk_block_deal_confirmation setting, since it also "
+              "requires at least some delivery history per symbol. Check the "
+              "full-bhavcopy warnings above.", file=sys.stderr)
 
     # No historical bulk/block deal source wired up (see module docstring) —
     # write headers only so scanner.py's CSV reader doesn't error.
