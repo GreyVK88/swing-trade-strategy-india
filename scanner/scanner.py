@@ -510,12 +510,31 @@ def run(config_path: str, account_capital: float) -> None:
     config = load_config(config_path)
 
     universe = load_universe(config)
+    print(f"[stage 0] universe: {len(universe)} symbols")
+
     tiered_universe = filter_by_cap_tier_and_liquidity(universe, config)
+    tiered_count = sum(len(v) for v in tiered_universe.values())
+    print(f"[stage 1] cap-tier/liquidity filter: {tiered_count} symbols "
+          f"({ {k: len(v) for k, v in tiered_universe.items()} })")
+
     candidates = detect_vcp_setups(tiered_universe, config)
+    print(f"[stage 2] VCP setups detected: {len(candidates)} "
+          f"({[c.symbol for c in candidates]})")
+
     candidates = apply_smart_money_confirmation(candidates, config)
+    print(f"[stage 3] smart-money confirmation survivors: {len(candidates)} "
+          f"({[c.symbol for c in candidates]})")
+
     candidates = rank_relative_strength(candidates, config)
+    print(f"[stage 4] RS ranking survivors: {len(candidates)} "
+          f"({[c.symbol for c in candidates]})")
+
     candidates = size_positions(candidates, config, account_capital)
+    print(f"[stage 5] after position sizing: {len(candidates)} "
+          f"({[c.symbol for c in candidates]})")
+
     candidates = apply_sector_macro_overlay(candidates, config, account_capital)
+    print(f"[stage 6] after sector/macro overlay: {len(candidates)}")
 
     write_output(candidates, config)
     print(f"Scan complete: {len(candidates)} candidates written to {config['output']['path']}")
