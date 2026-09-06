@@ -40,14 +40,40 @@ A top-down filter/tilt layered on top of the bottom-up scan:
 swing-trade-strategy-india/
 ├── README.md
 ├── config/
-│   └── screening_config.yaml   # all screening/sizing parameters, by cap tier
-└── scanner/
-    └── scanner.py               # scaffold for the screening pipeline
+│   └── screening_config.yaml   # all screening/sizing parameters, by cap tier + data file paths
+├── scanner/
+│   └── scanner.py               # the screening pipeline (all 6 stages implemented)
+├── data/
+│   ├── README.md                # CSV schemas expected by scanner.py
+│   ├── generate_sample_data.py  # generates synthetic sample data to run against
+│   └── sample/                  # generated sample data (gitignored except via generate script)
+└── output/
+    └── scan_results.csv         # written by each run
 ```
+
+## Quickstart
+
+```bash
+pip install pyyaml
+python data/generate_sample_data.py                                    # one-time: synthetic sample data
+python scanner/scanner.py --config config/screening_config.yaml --capital 1000000
+```
+
+This runs against small synthetic sample data (not real prices) purely to
+exercise the pipeline end-to-end. For real use, replace the files under
+`data/sample/` — or better, point `config/screening_config.yaml`'s `data:`
+section at your own exports — following the schemas in `data/README.md`.
 
 ## Status
 
-Scaffold stage — screening parameters and scanner pipeline are stubbed out and need to be filled in / backtested with real data before live use.
+All six pipeline stages are implemented (cap-tier/liquidity filtering, VCP
+detection, smart-money confirmation, RS ranking, fixed-fractional sizing,
+sector/macro overlay) and run end-to-end against the bundled sample data.
+The VCP detection is a heuristic swing-high/low based implementation, not a
+reference implementation — tune `config/screening_config.yaml`'s `vcp:`
+section and validate against your own charts/backtests before trusting its
+output. No live data source is wired in (see `data/README.md`); this reads
+local CSVs you refresh yourself from NSE bhavcopy or a vendor feed.
 
 ## Disclaimer
 

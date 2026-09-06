@@ -2,6 +2,16 @@
 # Screening & sizing parameters for the VCP-based cross-cap swing trading strategy.
 # Fill in / tune the placeholder values below against your own backtests.
 
+# Local data inputs. This scanner is source-agnostic: point these at CSVs you
+# export from NSE bhavcopy, your broker/vendor API, or the bundled sample data.
+# See data/README.md for exact schemas.
+data:
+  universe_csv: "data/sample/universe.csv"
+  ohlcv_dir: "data/sample/ohlcv"                # one {symbol}.csv per stock
+  benchmark_ohlcv_csv: "data/sample/ohlcv/NIFTY50.csv"
+  bulk_block_deals_csv: "data/sample/bulk_block_deals.csv"
+  delivery_pct_csv: "data/sample/delivery_pct.csv"
+
 universe:
   source: "nifty500"          # nifty500 | nifty_total_market | custom_list.csv
   exclude_illiquid: true
